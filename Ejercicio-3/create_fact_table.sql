@@ -1,11 +1,8 @@
--- =============================================================================
--- EXTRA (5 puntos): SQL CREATE TABLE + Particionamiento Ene-Feb 2025
--- =============================================================================
-
 CREATE TABLE IF NOT EXISTS gold.fct_monthly_usage (
     fact_id             BIGSERIAL,
     user_id             INT             NOT NULL,
     plan_name           VARCHAR(50)     NOT NULL,
+    date_key            INT             NOT NULL,
     month_year          DATE            NOT NULL,
     total_calls         INT             DEFAULT 0,
     total_call_minutes  DECIMAL(12,2)   DEFAULT 0,
@@ -22,16 +19,15 @@ CREATE TABLE IF NOT EXISTS gold.fct_monthly_usage (
 
     PRIMARY KEY (fact_id, month_year),
     FOREIGN KEY (user_id) REFERENCES gold.dim_users(user_id),
-    FOREIGN KEY (plan_name) REFERENCES gold.dim_plans(plan_name)
+    FOREIGN KEY (plan_name) REFERENCES gold.dim_plans(plan_name),
+    FOREIGN KEY (date_key) REFERENCES gold.dim_date(date_key)
 
 ) PARTITION BY RANGE (month_year);
 
--- Partición: Enero 2025
 CREATE TABLE gold.fct_monthly_usage_2025_01
     PARTITION OF gold.fct_monthly_usage
     FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
 
--- Partición: Febrero 2025
 CREATE TABLE gold.fct_monthly_usage_2025_02
     PARTITION OF gold.fct_monthly_usage
     FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');

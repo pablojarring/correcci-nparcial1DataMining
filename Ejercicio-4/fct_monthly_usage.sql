@@ -1,12 +1,3 @@
--- =====================================================================
--- Tarea 4: Tabla de hechos con dbt
--- Escribe solo el FROM y JOINs con su clave de unión
--- =====================================================================
--- Asunciones:
---   a. Se tiene sources.yml con el source para planes y usuarios
---   b. Modelos en silver: stg_calls, stg_internet, stg_messages
--- =====================================================================
-
 SELECT
     *
 
