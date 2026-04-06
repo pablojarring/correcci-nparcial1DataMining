@@ -1,0 +1,46 @@
+version: 2
+
+sources:
+  - name: megaline
+    description: "Datos operacionales de Megaline Telecom"
+    schema: raw
+    tables:
+      - name: megaline_users
+        description: "Catálogo de usuarios — quién es el cliente, su plan y fechas"
+        columns:
+          - name: user_id
+            tests:
+              - unique
+              - not_null
+
+      - name: megaline_plans
+        description: "Catálogo de planes — cuota mensual, límites y tarifas por excedente"
+        columns:
+          - name: plan_name
+            tests:
+              - unique
+              - not_null
+
+      - name: megaline_calls
+        description: "Eventos de llamadas (uso). Cada fila es una llamada"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: megaline_messages
+        description: "Eventos de SMS. Cada fila es un mensaje"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: megaline_internet
+        description: "Sesiones de internet. Cada fila es una sesión con MB consumidos"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null

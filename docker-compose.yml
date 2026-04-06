@@ -1,0 +1,177 @@
+version: "3.8"
+
+# =============================================================================
+# Infraestructura Megaline - Data Warehouse Pipeline
+# Servicios: PostgreSQL (DWH), Airflow (Orquestación), Spark (Procesamiento)
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Data Warehouse
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: megaline_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: megaline_dwh
+      POSTGRES_USER: megaline_admin
+      POSTGRES_PASSWORD: megaline_secure_pwd
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U megaline_admin -d megaline_dwh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Airflow - Inicialización de la base de datos
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: megaline_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@megaline.com
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://megaline_admin:megaline_secure_pwd@postgres:5432/megaline_dwh
+      AIRFLOW__CORE__FERNET_KEY: "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Airflow - Webserver (UI)
+  # ---------------------------------------------------------------------------
+  airflow-webserver:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: megaline_airflow_webserver
+    restart: unless-stopped
+    command: airflow webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://megaline_admin:megaline_secure_pwd@postgres:5432/megaline_dwh
+      AIRFLOW__CORE__FERNET_KEY: "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data_loader:/opt/airflow/data_loader
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Airflow - Scheduler
+  # ---------------------------------------------------------------------------
+  airflow-scheduler:
+    image: apache/airflow:2.8.1-python3.11
+    container_name: megaline_airflow_scheduler
+    restart: unless-stopped
+    command: airflow scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://megaline_admin:megaline_secure_pwd@postgres:5432/megaline_dwh
+      AIRFLOW__CORE__FERNET_KEY: "81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs="
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data_loader:/opt/airflow/data_loader
+      - airflow_logs:/opt/airflow/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Spark Master - Procesamiento distribuido (10 TB de datos)
+  # ---------------------------------------------------------------------------
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: megaline_spark_master
+    restart: unless-stopped
+    environment:
+      SPARK_MODE: master
+      SPARK_MASTER_HOST: spark-master
+      SPARK_RPC_AUTHENTICATION_ENABLED: "no"
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    volumes:
+      - ./pyspark:/opt/spark-apps
+      - spark_data:/opt/spark-data
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Spark Worker
+  # ---------------------------------------------------------------------------
+  spark-worker:
+    image: bitnami/spark:3.5.0
+    container_name: megaline_spark_worker
+    restart: unless-stopped
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_CORES: 4
+      SPARK_WORKER_MEMORY: 4g
+    depends_on:
+      - spark-master
+    volumes:
+      - ./pyspark:/opt/spark-apps
+      - spark_data:/opt/spark-data
+    networks:
+      - megaline_network
+
+# =============================================================================
+# Volúmenes persistentes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  airflow_logs:
+    driver: local
+  spark_data:
+    driver: local
+
+# =============================================================================
+# Red compartida entre servicios
+# =============================================================================
+networks:
+  megaline_network:
+    driver: bridge
