@@ -1,4 +1,7 @@
-# Examen Teórico — Data Mining — Respuestas
+
+
+## Examen Teórico — Data Mining - Pablo Jarrin - 00331629
+
 
 1) ¿Qué afirmación describe mejor por qué un contenedor es "más ligero" que una VM?
 - B
