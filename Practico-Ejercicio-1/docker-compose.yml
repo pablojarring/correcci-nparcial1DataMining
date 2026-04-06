@@ -1,0 +1,86 @@
+version: "3.8"
+
+# =============================================================================
+# Infraestructura Megaline — Data Warehouse Pipeline
+# PostgreSQL (DWH) + pgAdmin (UI) + Spark Notebook (PySpark + Jupyter)
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — Data Warehouse
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: megaline_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: megaline_dwh
+      POSTGRES_USER: megaline_admin
+      POSTGRES_PASSWORD: megaline_secure_pwd
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U megaline_admin -d megaline_dwh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # pgAdmin — Interfaz web para PostgreSQL
+  # ---------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: megaline_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@megaline.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - megaline_network
+
+  # ---------------------------------------------------------------------------
+  # Spark Notebook — Jupyter + PySpark para procesamiento de 10 TB
+  # ---------------------------------------------------------------------------
+  spark-notebook:
+    build: .
+    container_name: spark_notebook
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+    volumes:
+      - ./notebooks:/workspace/notebooks
+      - ./data:/workspace/data
+    environment:
+      - PYSPARK_PYTHON=python
+      - PYSPARK_DRIVER_PYTHON=python
+    restart: always
+    networks:
+      - megaline_network
+
+# =============================================================================
+# Volúmenes persistentes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# =============================================================================
+# Red compartida
+# =============================================================================
+networks:
+  megaline_network:
+    driver: bridge

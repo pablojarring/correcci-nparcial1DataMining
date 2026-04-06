@@ -1,12 +1,7 @@
 -- =============================================================================
--- CREATE TABLE: fct_monthly_usage (tabla de hechos)
--- =============================================================================
--- Extra (5 puntos): Escribir el código SQL para crear la tabla de hechos,
--- y el código para particionar, escribir el particionamiento solo de
--- Enero-Febrero 2025.
+-- EXTRA (5 puntos): SQL CREATE TABLE + Particionamiento Ene-Feb 2025
 -- =============================================================================
 
--- Crear la tabla de hechos con particionamiento por rango de mes
 CREATE TABLE IF NOT EXISTS gold.fct_monthly_usage (
     fact_id             BIGSERIAL,
     user_id             INT             NOT NULL,
@@ -25,17 +20,11 @@ CREATE TABLE IF NOT EXISTS gold.fct_monthly_usage (
     excess_internet_revenue DECIMAL(10,2)   DEFAULT 0,
     total_revenue       DECIMAL(12,2)   DEFAULT 0,
 
-    -- Constraints
     PRIMARY KEY (fact_id, month_year),
     FOREIGN KEY (user_id) REFERENCES gold.dim_users(user_id),
     FOREIGN KEY (plan_name) REFERENCES gold.dim_plans(plan_name)
 
 ) PARTITION BY RANGE (month_year);
-
-
--- =============================================================================
--- Particiones para Enero - Febrero 2025
--- =============================================================================
 
 -- Partición: Enero 2025
 CREATE TABLE gold.fct_monthly_usage_2025_01
@@ -46,11 +35,3 @@ CREATE TABLE gold.fct_monthly_usage_2025_01
 CREATE TABLE gold.fct_monthly_usage_2025_02
     PARTITION OF gold.fct_monthly_usage
     FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
-
-
--- =============================================================================
--- Índices para optimizar consultas analíticas
--- =============================================================================
-CREATE INDEX idx_fct_usage_user_id ON gold.fct_monthly_usage (user_id);
-CREATE INDEX idx_fct_usage_plan ON gold.fct_monthly_usage (plan_name);
-CREATE INDEX idx_fct_usage_month ON gold.fct_monthly_usage (month_year);
